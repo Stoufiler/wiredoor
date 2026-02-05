@@ -4,6 +4,7 @@ import { FilterQueryDto } from '../repositories/filters/repository-query-filter'
 import { nslookupResolvesServerIp } from './domain-validator';
 import Container from 'typedi';
 import { DomainRepository } from '../repositories/domain-repository';
+import { DNSValidator } from '../utils/dns-validator';
 
 export const validateServiceDomain = async (c: string): Promise<string> => {
   const domain = await Container.get(DomainRepository).getDomainByName(c);
@@ -29,6 +30,37 @@ export const validateServiceDomain = async (c: string): Promise<string> => {
   }
 
   return nslookupResolvesServerIp(c);
+};
+
+export const validateDomainArray = async (
+  domains: string[],
+): Promise<string[]> => {
+  if (!domains || domains.length === 0) return domains;
+
+  const dnsValidator = new DNSValidator();
+  for (const domain of domains) {
+    const { error } = Joi.string().domain().validate(domain);
+    if (error) {
+      throw new ValidationError(
+        `invalid domain in array`,
+        [
+          {
+            path: ['allowedDomains'],
+            message: `Domain ${domain} is not valid`,
+            type: 'Error',
+          },
+        ],
+        null,
+      );
+    }
+    // Optionally resolve to check if it exists
+    try {
+      await dnsValidator.validateDomain(domain);
+    } catch {
+      // Log but don't fail, as domains might be dynamic
+    }
+  }
+  return domains;
 };
 
 const validateBypassPaths = (input: string): string => {
@@ -137,6 +169,8 @@ export interface HttpServiceType {
   backendProto?: string;
   allowedIps?: string[];
   blockedIps?: string[];
+  allowedDomains?: string[];
+  blockedDomains?: string[];
   requireAuth?: boolean;
   skipAuthRoutes?: string;
   enabled?: boolean;
@@ -181,6 +215,16 @@ export const httpServiceValidator: ObjectSchema<HttpServiceType> = Joi.object({
   blockedIps: Joi.array()
     .items(Joi.string().ip({ cidr: 'optional' }).optional())
     .allow(null)
+    .optional(),
+  allowedDomains: Joi.array()
+    .items(Joi.string().domain().optional())
+    .allow(null)
+    .external(validateDomainArray)
+    .optional(),
+  blockedDomains: Joi.array()
+    .items(Joi.string().domain().optional())
+    .allow(null)
+    .external(validateDomainArray)
     .optional(),
   requireAuth: Joi.boolean().when('domain', {
     is: Joi.string(),

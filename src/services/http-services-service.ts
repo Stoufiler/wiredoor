@@ -16,6 +16,7 @@ import { NodeRepository } from '../repositories/node-repository';
 import { calculateExpiresAtFromTTL } from '../utils/ttl-utils';
 import { NginxHttpService } from './proxy-server/nginx-http-service';
 import { Logger } from '../logger';
+import { DNSValidator } from '../utils/dns-validator';
 
 @Service()
 export class HttpServicesService extends BaseServices {
@@ -24,10 +25,11 @@ export class HttpServicesService extends BaseServices {
   constructor(
     @Inject() private readonly httpServiceRepository: HttpServiceRepository,
     @Inject() private readonly httpServiceFilter: HttpServiceQueryFilter,
-    @Inject() private readonly nodeRepository: NodeRepository,
-    @Inject() private readonly domainService: DomainsService,
+    @Inject() nodeRepository: NodeRepository,
+    @Inject() domainService: DomainsService,
+    @Inject() dnsValidator: DNSValidator,
   ) {
-    super(nodeRepository, domainService);
+    super(nodeRepository, domainService, dnsValidator);
     this.nginxHttpService = new NginxHttpService();
   }
 
@@ -98,10 +100,20 @@ export class HttpServicesService extends BaseServices {
 
     const expiresAt = calculateExpiresAtFromTTL(params.ttl);
 
+    // Resolve domains to IPs
+    const allowedDomainIps = await this.resolveDomainsToIps(
+      params.allowedDomains || [],
+    );
+    const blockedDomainIps = await this.resolveDomainsToIps(
+      params.blockedDomains || [],
+    );
+
     const { id } = await this.httpServiceRepository.save({
       ...params,
       nodeId,
       expiresAt,
+      allowedIps: [...(params.allowedIps || []), ...allowedDomainIps],
+      blockedIps: [...(params.blockedIps || []), ...blockedDomainIps],
     });
 
     const httpService = await this.getHttpService(id, ['node']);
@@ -139,9 +151,23 @@ export class HttpServicesService extends BaseServices {
 
     await this.nginxHttpService.remove(old, false);
 
+    // Resolve domains to IPs
+    const allowedDomainIps = await this.resolveDomainsToIps(
+      params.allowedDomains || [],
+    );
+    const blockedDomainIps = await this.resolveDomainsToIps(
+      params.blockedDomains || [],
+    );
+
     await this.httpServiceRepository.save({
       id,
       ...params,
+      allowedIps: params.allowedIps
+        ? [...params.allowedIps, ...allowedDomainIps]
+        : undefined,
+      blockedIps: params.blockedIps
+        ? [...params.blockedIps, ...blockedDomainIps]
+        : undefined,
     });
 
     const httpService = await this.getHttpService(id, ['node']);

@@ -231,7 +231,7 @@ describe('Domains Service', () => {
 
       expect(mockSaveToFile.mock.calls).toEqual([
         [
-          `/data/oauth2/.cookie-secret-${data.domain}`,
+          `${process.env.OAUTH2_DATA_DIR || '/data/oauth2'}/.cookie-secret-${data.domain}`,
           expect.any(String),
           'utf-8',
           0o600,

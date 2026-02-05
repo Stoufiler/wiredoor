@@ -35,6 +35,8 @@ import { NodeInfo } from '../../database/models/node';
 import { faker } from '@faker-js/faker';
 import config from '../../config';
 
+import { DNSValidator } from '../../utils/dns-validator';
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let app;
 let dataSource: DataSource;
@@ -83,12 +85,14 @@ describe('Nodes Service', () => {
       new HttpServiceQueryFilter(httpServiceRepository),
       repository,
       domainService,
+      new DNSValidator(),
     );
     tcpServicesService = new TcpServicesService(
       tcpServiceRepository,
       new TcpServiceQueryFilter(tcpServiceRepository),
       repository,
       domainService,
+      new DNSValidator(),
     );
     patService = new PatService(
       patRepository,

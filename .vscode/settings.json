@@ -4,5 +4,16 @@
   "jest.rootPath": ".",
   "jest.enableCodeLens": true,
   "jest.showInlineError": true,
-  "jest.runAllTestsFirst": false
+  "jest.runAllTestsFirst": false,
+  "chat.tools.terminal.autoApprove": {
+    "npm install": true,
+    "/^node --version$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^node --input-type=module -e \"import dns from 'dns'; console\\.log\\(typeof dns\\.Resolver\\); console\\.log\\(dns\\.Resolver\\);\"$/": {
+      "approve": true,
+      "matchCommandLine": true
+    }
+  }
 }

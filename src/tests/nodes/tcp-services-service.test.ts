@@ -36,6 +36,8 @@ import { faker } from '@faker-js/faker';
 import { Server } from 'http';
 import ServerUtils from '../../utils/server';
 
+import { DNSValidator } from '../../utils/dns-validator';
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let app;
 let dataSource: DataSource;
@@ -85,12 +87,14 @@ describe('TCP Services Service', () => {
       new HttpServiceQueryFilter(httpServiceRepository),
       nodeRepository,
       domainService,
+      new DNSValidator(),
     );
     service = new TcpServicesService(
       repository,
-      filter,
+      new TcpServiceQueryFilter(repository),
       nodeRepository,
       domainService,
+      new DNSValidator(),
     );
 
     nodesService = new NodesService(
@@ -117,6 +121,8 @@ describe('TCP Services Service', () => {
   });
 
   afterEach(async () => {
+    await repository.clear();
+    await nodeRepository.clear();
     jest.clearAllMocks();
   });
 

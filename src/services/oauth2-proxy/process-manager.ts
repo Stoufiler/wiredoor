@@ -7,7 +7,7 @@ import FileManager from '../../utils/file-manager';
 import { Logger } from '../../logger';
 
 const getGeneratedKey = (domain: string): string => {
-  const dir = `/data/oauth2`;
+  const dir = process.env.OAUTH2_DATA_DIR || `/data/oauth2`;
   fs.mkdirSync(dir, { recursive: true });
   const filePath: string = `${dir}/.cookie-secret-${domain}`;
   try {
@@ -82,7 +82,9 @@ stderr_logfile=${config.nginx.logs}/${domain.domain}/oauth2-proxy.stderr.log`;
         `/etc/supervisor/conf.d/oauth2-proxy-d${domain.id}.conf`,
       ),
       FileManager.removeFile(`/opt/oauth2-proxy/${domain.domain}-emails`),
-      FileManager.removeFile(`/data/oauth2/.cookie-secret-${domain.domain}`),
+      FileManager.removeFile(
+        `${process.env.OAUTH2_DATA_DIR || '/data/oauth2'}/.cookie-secret-${domain.domain}`,
+      ),
     ]);
 
     if (restart) {

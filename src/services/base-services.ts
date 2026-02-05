@@ -7,12 +7,14 @@ import { ValidationError } from '../utils/errors/validation-error';
 import config from '../config';
 import { DomainsService } from './domains-service';
 import { Logger } from '../logger';
+import { DNSValidator } from '../utils/dns-validator';
 
 @Service()
 export class BaseServices {
   constructor(
-    private readonly nodeRepo: NodeRepository,
-    private readonly domainSvc: DomainsService,
+    protected readonly nodeRepository: NodeRepository,
+    protected readonly domainService: DomainsService,
+    protected readonly dnsValidator: DNSValidator,
   ) {}
 
   protected async checkNodePort(
@@ -21,7 +23,7 @@ export class BaseServices {
     host?: string,
     ssl?: boolean,
   ): Promise<void> {
-    const node = await this.nodeRepo.findOne({
+    const node = await this.nodeRepository.findOne({
       where: { id: nodeId },
     });
 
@@ -66,7 +68,7 @@ export class BaseServices {
   protected async checkOrCreateDomain(domain: string): Promise<void> {
     if (domain) {
       try {
-        await this.domainSvc.createDomainIfNotExists(domain);
+        await this.domainService.createDomainIfNotExists(domain);
       } catch (err: any) {
         Logger.error(
           `Error creating or checking domain ${domain}: ${err.message}`,
@@ -85,5 +87,19 @@ export class BaseServices {
         });
       }
     }
+  }
+
+  protected async resolveDomainsToIps(domains: string[]): Promise<string[]> {
+    if (!domains || domains.length === 0) return [];
+    const ips: string[] = [];
+    for (const domain of domains) {
+      try {
+        const resolved = await this.dnsValidator.validateDomain(domain);
+        ips.push(...resolved);
+      } catch {
+        // Skip invalid domains
+      }
+    }
+    return [...new Set(ips)]; // Unique IPs
   }
 }

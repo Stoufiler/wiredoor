@@ -13,6 +13,7 @@ import { BaseServices } from './base-services';
 import { NodeRepository } from '../repositories/node-repository';
 import { calculateExpiresAtFromTTL } from '../utils/ttl-utils';
 import { NginxTcpService } from './proxy-server/nginx-tcp-service';
+import { DNSValidator } from '../utils/dns-validator';
 
 @Service()
 export class TcpServicesService extends BaseServices {
@@ -21,10 +22,11 @@ export class TcpServicesService extends BaseServices {
   constructor(
     @Inject() private readonly tcpServiceRepository: TcpServiceRepository,
     @Inject() private readonly tcpServiceFilter: TcpServiceQueryFilter,
-    @Inject() private readonly nodeRepository: NodeRepository,
-    @Inject() private readonly domainsService: DomainsService,
+    @Inject() nodeRepository: NodeRepository,
+    @Inject() domainService: DomainsService,
+    @Inject() dnsValidator: DNSValidator,
   ) {
-    super(nodeRepository, domainsService);
+    super(nodeRepository, domainService, dnsValidator);
     this.nginxTcpService = new NginxTcpService();
   }
 
@@ -98,10 +100,20 @@ export class TcpServicesService extends BaseServices {
     }
     await this.checkOrCreateDomain(params.domain);
 
+    // Resolve domains to IPs
+    const allowedDomainIps = await this.resolveDomainsToIps(
+      params.allowedDomains || [],
+    );
+    const blockedDomainIps = await this.resolveDomainsToIps(
+      params.blockedDomains || [],
+    );
+
     const { id } = await this.tcpServiceRepository.save({
       ...params,
       nodeId,
       expiresAt,
+      allowedIps: [...(params.allowedIps || []), ...allowedDomainIps],
+      blockedIps: [...(params.blockedIps || []), ...blockedDomainIps],
     });
 
     const service = await this.getTcpService(id, ['node']);
@@ -128,9 +140,23 @@ export class TcpServicesService extends BaseServices {
 
     await this.nginxTcpService.remove(old, false);
 
+    // Resolve domains to IPs
+    const allowedDomainIps = await this.resolveDomainsToIps(
+      params.allowedDomains || [],
+    );
+    const blockedDomainIps = await this.resolveDomainsToIps(
+      params.blockedDomains || [],
+    );
+
     await this.tcpServiceRepository.save({
       id,
       ...params,
+      allowedIps: params.allowedIps
+        ? [...params.allowedIps, ...allowedDomainIps]
+        : undefined,
+      blockedIps: params.blockedIps
+        ? [...params.blockedIps, ...blockedDomainIps]
+        : undefined,
     });
 
     const service = await this.getTcpService(id, ['node']);

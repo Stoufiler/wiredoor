@@ -73,10 +73,13 @@ export class CoreLogger implements ILogger {
         baseConfig.environment ||
         process.env.NODE_ENV ||
         Environment.PRODUCTION,
-      logLevel: baseConfig.logLevel || envConfig.log.level || ('info' as any),
+      logLevel:
+        baseConfig.logLevel ||
+        (envConfig?.log?.level as any) ||
+        ('info' as any),
       prettyPrint:
         baseConfig.prettyPrint ??
-        (envConfig.log.format === 'console' ||
+        (envConfig?.log?.format === 'console' ||
           process.env.NODE_ENV === Environment.DEVELOPMENT),
       sensitiveFields: baseConfig.sensitiveFields || [],
       enableAudit: baseConfig.enableAudit !== false,

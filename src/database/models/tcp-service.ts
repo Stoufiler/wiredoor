@@ -75,10 +75,22 @@ export class TcpService {
   })
   blockedIps: string[];
 
+  @Column({
+    type: 'json',
+    nullable: true,
+  })
+  allowedDomains: string[];
+
+  @Column({
+    type: 'json',
+    nullable: true,
+  })
+  blockedDomains: string[];
+
   @Column({ type: 'datetime', nullable: true })
   expiresAt?: Date;
 
-  @ManyToOne(() => Node, {
+  @ManyToOne(() => Node, (node) => node.tcpServices, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'nodeId' })

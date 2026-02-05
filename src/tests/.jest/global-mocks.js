@@ -172,6 +172,34 @@ function mockAuthenticatedToken(c) {
   return jwt.sign(claims, config.jwt.secret);
 }
 
+// DNS Validator mock
+jest.mock('src/utils/dns-validator', () => {
+  return {
+    DNSValidator: jest.fn().mockImplementation(() => ({
+      validateDomain: jest.fn().mockResolvedValue(['127.0.0.1']),
+      validateDomainWithCache: jest.fn().mockResolvedValue(['127.0.0.1']),
+    })),
+  };
+});
+
+const { DNSValidator: mockDNSValidator } = require('src/utils/dns-validator');
+const { Container } = require('typedi');
+
+// Register the mocked class in the container
+Container.set(mockDNSValidator, new mockDNSValidator());
+
+// Function to override DNS validator mock for specific tests
+const setDNSValidatorMock = (impl) => {
+  mockDNSValidator.mockImplementation(impl);
+};
+
+const resetDNSValidatorMock = () => {
+  mockDNSValidator.mockImplementation(() => ({
+    validateDomain: jest.fn().mockResolvedValue(['127.0.0.1']),
+    validateDomainWithCache: jest.fn().mockResolvedValue(['127.0.0.1']),
+  }));
+};
+
 module.exports = {
   mockLookup,
   mockAxiosGet,
@@ -197,4 +225,6 @@ module.exports = {
   mockCheckPort,
   mockGetAvailablePort,
   mockAuthenticatedToken,
+  setDNSValidatorMock,
+  resetDNSValidatorMock,
 };

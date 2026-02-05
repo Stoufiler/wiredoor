@@ -293,6 +293,7 @@ Options:
 - `--proto https` — use HTTPS to talk to backend (default: http)
 - `--backendHost` — required if exposing from a gateway node
 - `--allow` / `--block` — restrict access by IP or subnet
+- `--allow-domains` / `--block-domains` — restrict access by domain (resolved to IPs dynamically)
 
 ### Using the CLI to expose TCP/UDP services
 
@@ -305,6 +306,7 @@ Options:
 - `--proto tcp|udp`
 - `--ssl` — wrap traffic in TLS
 - `--allowedIps` — allow list for security
+- `--allow-domains` / `--block-domains` — restrict access by domain (resolved to IPs dynamically)
 
 ## Monitor Access Logs (per domain or service)
 
