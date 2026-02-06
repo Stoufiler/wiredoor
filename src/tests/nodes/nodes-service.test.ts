@@ -34,6 +34,8 @@ import { PagedData } from '../../repositories/filters/repository-query-filter';
 import { NodeInfo } from '../../database/models/node';
 import { faker } from '@faker-js/faker';
 import config from '../../config';
+import { NginxHttpService } from '../../services/proxy-server/nginx-http-service';
+import { NginxTcpService } from '../../services/proxy-server/nginx-tcp-service';
 
 import { DNSValidator } from '../../utils/dns-validator';
 
@@ -83,16 +85,16 @@ describe('Nodes Service', () => {
     httpServicesService = new HttpServicesService(
       httpServiceRepository,
       new HttpServiceQueryFilter(httpServiceRepository),
+      new NginxHttpService(),
       repository,
       domainService,
-      new DNSValidator(),
     );
     tcpServicesService = new TcpServicesService(
       tcpServiceRepository,
       new TcpServiceQueryFilter(tcpServiceRepository),
+      new NginxTcpService(),
       repository,
       domainService,
-      new DNSValidator(),
     );
     patService = new PatService(
       patRepository,

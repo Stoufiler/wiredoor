@@ -1,3 +1,4 @@
+import { Service, Inject } from 'typedi';
 import Container from 'typedi';
 import { HttpService } from '../../database/models/http-service';
 import { NginxLocationConf } from './conf/nginx-location-conf';
@@ -6,6 +7,7 @@ import { DomainRepository } from '../../repositories/domain-repository';
 import IP_CIDR from '../../utils/ip-cidr';
 import { NginxConf } from './conf/nginx-conf';
 import { Logger } from '../../logger';
+import { DNSValidator } from '../../utils/dns-validator';
 
 type LocationType = 'exact' | 'regex';
 
@@ -21,6 +23,7 @@ const parseLocationType = (line: string): LocationType | null => {
   return null;
 };
 
+@Service()
 export class NginxHttpService extends NginxService {
   async create(service: HttpService, restart = true): Promise<boolean> {
     if (!service.enabled) {
@@ -85,8 +88,35 @@ export class NginxHttpService extends NginxService {
       }
     }
 
+    const allowedIps = [...(service.allowedIps || [])];
+    const blockedIps = [...(service.blockedIps || [])];
+
+    if (service.allowedDomains?.length) {
+      const dnsValidator = Container.get(DNSValidator);
+      for (const domain of service.allowedDomains) {
+        try {
+          const resolved = await dnsValidator.validateDomainWithCache(domain);
+          allowedIps.push(...resolved);
+        } catch (e) {
+          Logger.warn(`Failed to resolve allowed domain ${domain}`, e);
+        }
+      }
+    }
+
+    if (service.blockedDomains?.length) {
+      const dnsValidator = Container.get(DNSValidator);
+      for (const domain of service.blockedDomains) {
+        try {
+          const resolved = await dnsValidator.validateDomainWithCache(domain);
+          blockedIps.push(...resolved);
+        } catch (e) {
+          Logger.warn(`Failed to resolve blocked domain ${domain}`, e);
+        }
+      }
+    }
+
     baseLocation
-      .setNetworkAccess(service.allowedIps)
+      .setNetworkAccess(allowedIps, blockedIps)
       .includeCommonProxySettings()
       .addBlock(`set $${service.identifier}`, host)
       .setProxyPass(

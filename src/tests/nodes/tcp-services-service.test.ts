@@ -35,8 +35,10 @@ import { PagedData } from '../../repositories/filters/repository-query-filter';
 import { faker } from '@faker-js/faker';
 import { Server } from 'http';
 import ServerUtils from '../../utils/server';
-
+import { NginxHttpService } from '../../services/proxy-server/nginx-http-service';
+import { NginxTcpService } from '../../services/proxy-server/nginx-tcp-service';
 import { DNSValidator } from '../../utils/dns-validator';
+
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let app;
@@ -85,16 +87,16 @@ describe('TCP Services Service', () => {
     httpServicesService = new HttpServicesService(
       httpServiceRepository,
       new HttpServiceQueryFilter(httpServiceRepository),
+      new NginxHttpService(),
       nodeRepository,
       domainService,
-      new DNSValidator(),
     );
     service = new TcpServicesService(
       repository,
       new TcpServiceQueryFilter(repository),
+      new NginxTcpService(),
       nodeRepository,
       domainService,
-      new DNSValidator(),
     );
 
     nodesService = new NodesService(

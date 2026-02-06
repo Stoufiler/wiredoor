@@ -7,14 +7,12 @@ import { ValidationError } from '../utils/errors/validation-error';
 import config from '../config';
 import { DomainsService } from './domains-service';
 import { Logger } from '../logger';
-import { DNSValidator } from '../utils/dns-validator';
 
 @Service()
 export class BaseServices {
   constructor(
     protected readonly nodeRepository: NodeRepository,
     protected readonly domainService: DomainsService,
-    protected readonly dnsValidator: DNSValidator,
   ) {}
 
   protected async checkNodePort(
@@ -87,19 +85,5 @@ export class BaseServices {
         });
       }
     }
-  }
-
-  protected async resolveDomainsToIps(domains: string[]): Promise<string[]> {
-    if (!domains || domains.length === 0) return [];
-    const ips: string[] = [];
-    for (const domain of domains) {
-      try {
-        const resolved = await this.dnsValidator.validateDomain(domain);
-        ips.push(...resolved);
-      } catch {
-        // Skip invalid domains
-      }
-    }
-    return [...new Set(ips)]; // Unique IPs
   }
 }

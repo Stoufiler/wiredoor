@@ -13,21 +13,18 @@ import { BaseServices } from './base-services';
 import { NodeRepository } from '../repositories/node-repository';
 import { calculateExpiresAtFromTTL } from '../utils/ttl-utils';
 import { NginxTcpService } from './proxy-server/nginx-tcp-service';
-import { DNSValidator } from '../utils/dns-validator';
+import { Logger } from '../logger';
 
 @Service()
 export class TcpServicesService extends BaseServices {
-  private nginxTcpService: NginxTcpService;
-
   constructor(
     @Inject() private readonly tcpServiceRepository: TcpServiceRepository,
     @Inject() private readonly tcpServiceFilter: TcpServiceQueryFilter,
+    @Inject() private readonly nginxTcpService: NginxTcpService,
     @Inject() nodeRepository: NodeRepository,
     @Inject() domainService: DomainsService,
-    @Inject() dnsValidator: DNSValidator,
   ) {
-    super(nodeRepository, domainService, dnsValidator);
-    this.nginxTcpService = new NginxTcpService();
+    super(nodeRepository, domainService);
   }
 
   public async initialize(): Promise<void> {
@@ -100,20 +97,10 @@ export class TcpServicesService extends BaseServices {
     }
     await this.checkOrCreateDomain(params.domain);
 
-    // Resolve domains to IPs
-    const allowedDomainIps = await this.resolveDomainsToIps(
-      params.allowedDomains || [],
-    );
-    const blockedDomainIps = await this.resolveDomainsToIps(
-      params.blockedDomains || [],
-    );
-
     const { id } = await this.tcpServiceRepository.save({
       ...params,
       nodeId,
       expiresAt,
-      allowedIps: [...(params.allowedIps || []), ...allowedDomainIps],
-      blockedIps: [...(params.blockedIps || []), ...blockedDomainIps],
     });
 
     const service = await this.getTcpService(id, ['node']);
@@ -140,23 +127,9 @@ export class TcpServicesService extends BaseServices {
 
     await this.nginxTcpService.remove(old, false);
 
-    // Resolve domains to IPs
-    const allowedDomainIps = await this.resolveDomainsToIps(
-      params.allowedDomains || [],
-    );
-    const blockedDomainIps = await this.resolveDomainsToIps(
-      params.blockedDomains || [],
-    );
-
     await this.tcpServiceRepository.save({
       id,
       ...params,
-      allowedIps: params.allowedIps
-        ? [...params.allowedIps, ...allowedDomainIps]
-        : undefined,
-      blockedIps: params.blockedIps
-        ? [...params.blockedIps, ...blockedDomainIps]
-        : undefined,
     });
 
     const service = await this.getTcpService(id, ['node']);
@@ -212,5 +185,22 @@ export class TcpServicesService extends BaseServices {
     restart = true,
   ): Promise<void> {
     await this.nginxTcpService.create(tcpService, restart);
+  }
+
+  public async refreshDomainIps(): Promise<void> {
+    const services = await this.tcpServiceRepository.find({
+      where: { enabled: true },
+      relations: ['node'],
+    });
+
+    for (const service of services) {
+      if (service.allowedDomains?.length || service.blockedDomains?.length) {
+        try {
+          await this.buildServerConfig(service, false);
+        } catch (e) {
+          Logger.warn(`Failed to refresh IPs for service ${service.name}`, e);
+        }
+      }
+    }
   }
 }
