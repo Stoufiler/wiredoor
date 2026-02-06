@@ -81,7 +81,7 @@ export default class Net {
   }
 
   static async nslookup(domain: string, resolver?: string): Promise<string[]> {
-    const customResolver = new CustomDNSResolver(5000, 3, 10000); // 5s timeout, 3 tries, 10s max
+    const customResolver = new CustomDNSResolver(5000); // 5s timeout
     if (resolver) {
       customResolver.resolver.setServers([resolver]);
     }
