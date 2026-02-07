@@ -19,16 +19,14 @@ import { Logger } from '../logger';
 
 @Service()
 export class HttpServicesService extends BaseServices {
-  private nginxHttpService: NginxHttpService;
-
   constructor(
     @Inject() private readonly httpServiceRepository: HttpServiceRepository,
     @Inject() private readonly httpServiceFilter: HttpServiceQueryFilter,
-    @Inject() private readonly nodeRepository: NodeRepository,
-    @Inject() private readonly domainService: DomainsService,
+    @Inject() private readonly nginxHttpService: NginxHttpService,
+    @Inject() nodeRepository: NodeRepository,
+    @Inject() domainService: DomainsService,
   ) {
     super(nodeRepository, domainService);
-    this.nginxHttpService = new NginxHttpService();
   }
 
   public async initialize(): Promise<void> {
@@ -122,7 +120,10 @@ export class HttpServicesService extends BaseServices {
         domain: params.domain,
         allowedIps: params.allowedIps,
         blockedIps: params.blockedIps,
+        allowedDomains: params.allowedDomains,
+        blockedDomains: params.blockedDomains,
         requireAuth: params.requireAuth,
+        skipAuthRoutes: params.skipAuthRoutes,
       };
     }
 
@@ -269,5 +270,22 @@ export class HttpServicesService extends BaseServices {
     restart = true,
   ): Promise<void> {
     await this.nginxHttpService.create(httpService, restart);
+  }
+
+  public async refreshDomainIps(): Promise<void> {
+    const services = await this.httpServiceRepository.find({
+      where: [{ enabled: true }],
+      relations: ['node'],
+    });
+
+    for (const service of services) {
+      if (service.allowedDomains?.length || service.blockedDomains?.length) {
+        try {
+          await this.buildServerConfig(service, false);
+        } catch (e) {
+          Logger.warn(`Failed to refresh IPs for service ${service.name}`, e);
+        }
+      }
+    }
   }
 }
