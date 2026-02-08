@@ -13,19 +13,18 @@ import { BaseServices } from './base-services';
 import { NodeRepository } from '../repositories/node-repository';
 import { calculateExpiresAtFromTTL } from '../utils/ttl-utils';
 import { NginxTcpService } from './proxy-server/nginx-tcp-service';
+import { Logger } from '../logger';
 
 @Service()
 export class TcpServicesService extends BaseServices {
-  private nginxTcpService: NginxTcpService;
-
   constructor(
     @Inject() private readonly tcpServiceRepository: TcpServiceRepository,
     @Inject() private readonly tcpServiceFilter: TcpServiceQueryFilter,
-    @Inject() private readonly nodeRepository: NodeRepository,
-    @Inject() private readonly domainsService: DomainsService,
+    @Inject() private readonly nginxTcpService: NginxTcpService,
+    @Inject() nodeRepository: NodeRepository,
+    @Inject() domainService: DomainsService,
   ) {
-    super(nodeRepository, domainsService);
-    this.nginxTcpService = new NginxTcpService();
+    super(nodeRepository, domainService);
   }
 
   public async initialize(): Promise<void> {
@@ -186,5 +185,22 @@ export class TcpServicesService extends BaseServices {
     restart = true,
   ): Promise<void> {
     await this.nginxTcpService.create(tcpService, restart);
+  }
+
+  public async refreshDomainIps(): Promise<void> {
+    const services = await this.tcpServiceRepository.find({
+      where: { enabled: true },
+      relations: ['node'],
+    });
+
+    for (const service of services) {
+      if (service.allowedDomains?.length || service.blockedDomains?.length) {
+        try {
+          await this.buildServerConfig(service, false);
+        } catch (e) {
+          Logger.warn(`Failed to refresh IPs for service ${service.name}`, e);
+        }
+      }
+    }
   }
 }

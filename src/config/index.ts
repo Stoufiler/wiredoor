@@ -77,6 +77,10 @@ export default {
   },
   dns: {
     provider: process.env.DNS_PROVIDER || null,
+    refreshInterval: parseInt(process.env.DOMAIN_REFRESH_INTERVAL || '300000'), // 5 minutes default
+    cacheTtlMs:
+      parseInt(process.env.DNS_CACHE_TTL_MS || '') ||
+      parseInt(process.env.DOMAIN_REFRESH_INTERVAL || '300000'),
   },
   nginx: {
     bodySize: process.env.NGINX_CLIENT_MAX_BODY_SIZE || '100m',

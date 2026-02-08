@@ -34,7 +34,9 @@ beforeAll(async () => {
   nodeToken = patRes.body.token;
 });
 
-afterAll(async () => {});
+beforeEach(() => {
+  // Setup if needed
+});
 
 describe('Wiredoor CLI API', () => {
   describe('GET /api/cli/node', () => {

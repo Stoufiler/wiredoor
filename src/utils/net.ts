@@ -8,8 +8,11 @@ import config from '../config';
 import { Resolver } from 'dns/promises';
 import IP_CIDR from './ip-cidr';
 import { createLogger } from '../logger';
+import { DNSCache } from './dns-cache';
+import { CustomDNSResolver } from './dns-resolver';
 
 const logger = createLogger({ serviceName: 'Net' });
+const dnsCache = new DNSCache(config.dns.cacheTtlMs);
 
 export default class Net {
   static async addRoute(
@@ -78,42 +81,17 @@ export default class Net {
   }
 
   static async nslookup(domain: string, resolver?: string): Promise<string[]> {
-    const resolveWith = (
-      res: dns.Resolver | typeof dns,
-    ): Promise<string[] | null> => {
-      return new Promise((resolve) => {
-        res.resolve(domain, (err, addresses) => {
-          if (err || !addresses?.length) {
-            return resolve(null);
-          }
-          resolve(addresses);
-        });
-      });
-    };
-
-    const tryResolve = async (): Promise<string[] | null> => {
-      try {
-        if (resolver) {
-          const nsResolver = new dns.Resolver();
-          nsResolver.setServers([resolver]);
-          return await resolveWith(nsResolver);
-        }
-        return await resolveWith(dns);
-      } catch {
-        return null;
-      }
-    };
-
-    const result = await tryResolve();
-    if (result) return result;
-
-    try {
-      await CLI.exec(`ping -c 1 -W 1 ${domain}`);
-    } catch {
-      // ignore ping errors
+    const customResolver = new CustomDNSResolver(5000); // 5s timeout
+    if (resolver) {
+      customResolver.resolver.setServers([resolver]);
     }
 
-    return tryResolve();
+    try {
+      return await dnsCache.resolveWithCache(domain, customResolver.resolver);
+    } catch {
+      // Fallback to ping-based resolution or error
+      return [];
+    }
   }
 
   static async checkCNAME(domain: string): Promise<string[]> {

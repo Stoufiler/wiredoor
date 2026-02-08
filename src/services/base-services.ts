@@ -11,8 +11,8 @@ import { Logger } from '../logger';
 @Service()
 export class BaseServices {
   constructor(
-    private readonly nodeRepo: NodeRepository,
-    private readonly domainSvc: DomainsService,
+    protected readonly nodeRepository: NodeRepository,
+    protected readonly domainService: DomainsService,
   ) {}
 
   protected async checkNodePort(
@@ -21,7 +21,7 @@ export class BaseServices {
     host?: string,
     ssl?: boolean,
   ): Promise<void> {
-    const node = await this.nodeRepo.findOne({
+    const node = await this.nodeRepository.findOne({
       where: { id: nodeId },
     });
 
@@ -66,7 +66,7 @@ export class BaseServices {
   protected async checkOrCreateDomain(domain: string): Promise<void> {
     if (domain) {
       try {
-        await this.domainSvc.createDomainIfNotExists(domain);
+        await this.domainService.createDomainIfNotExists(domain);
       } catch (err: any) {
         Logger.error(
           `Error creating or checking domain ${domain}: ${err.message}`,

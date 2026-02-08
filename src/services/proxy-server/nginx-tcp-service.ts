@@ -1,3 +1,4 @@
+import { Service } from 'typedi';
 import Container from 'typedi';
 import { TcpService } from '../../database/models/tcp-service';
 import { NginxService } from './nginx-service';
@@ -8,7 +9,31 @@ import ServerUtils from '../../utils/server';
 import { DomainRepository } from '../../repositories/domain-repository';
 import { SSLManager } from './ssl-manager';
 import { Logger } from '../../logger';
+import { DNSValidator } from '../../utils/dns-validator';
 
+const resolveDomainsToIps = async (
+  domains: string[] | null | undefined = [],
+  dnsValidator: DNSValidator,
+  label: 'allowed' | 'blocked',
+): Promise<string[]> => {
+  const safeDomains = domains || [];
+  const uniqueDomains = [...new Set(safeDomains.filter(Boolean))];
+
+  const results = await Promise.all(
+    uniqueDomains.map(async (domain) => {
+      try {
+        return await dnsValidator.validateDomainWithCache(domain);
+      } catch (e) {
+        Logger.warn(`Failed to resolve ${label} domain ${domain}`, e);
+        return [];
+      }
+    }),
+  );
+
+  return results.flat();
+};
+
+@Service()
 export class NginxTcpService extends NginxService {
   async create(service: TcpService, restart = true): Promise<boolean> {
     if (!service.enabled) {
@@ -27,14 +52,26 @@ export class NginxTcpService extends NginxService {
 
     const serverConf = new NginxServerConf();
 
-    if (service.blockedIps?.length) {
-      for (const ipOrSubnet of service.blockedIps) {
+    const allowedIps = new Set(service.allowedIps || []);
+    const blockedIps = new Set(service.blockedIps || []);
+    const dnsValidator = Container.get(DNSValidator);
+
+    const [resolvedAllowed, resolvedBlocked] = await Promise.all([
+      resolveDomainsToIps(service.allowedDomains, dnsValidator, 'allowed'),
+      resolveDomainsToIps(service.blockedDomains, dnsValidator, 'blocked'),
+    ]);
+
+    resolvedAllowed.forEach((ip) => allowedIps.add(ip));
+    resolvedBlocked.forEach((ip) => blockedIps.add(ip));
+
+    if (blockedIps.size) {
+      for (const ipOrSubnet of blockedIps) {
         serverConf.setDeny(ipOrSubnet);
       }
     }
 
-    if (service.allowedIps?.length) {
-      for (const ipOrSubnet of service.allowedIps) {
+    if (allowedIps.size) {
+      for (const ipOrSubnet of allowedIps) {
         serverConf.setAllow(ipOrSubnet);
       }
       serverConf.setDeny('all');

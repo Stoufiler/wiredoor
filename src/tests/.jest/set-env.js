@@ -8,4 +8,6 @@ process.env = Object.assign(process.env, {
   OAUTH2_PROXY_PROVIDER: 'google',
   OAUTH2_PROXY_CLIENT_ID: 'example',
   OAUTH2_PROXY_CLIENT_SECRET: 'example',
+  PRIVATE_KEY: 'test_private_key_for_jwt_signing_purposes_only_12345',
+  OAUTH2_DATA_DIR: './data/oauth2',
 });

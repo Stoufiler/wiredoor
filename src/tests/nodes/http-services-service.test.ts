@@ -18,6 +18,8 @@ import {
   mockNslookup,
   mockRemoveFile,
   mockSaveToFile,
+  setDNSValidatorMock,
+  resetDNSValidatorMock,
 } from '../.jest/global-mocks';
 import { PatService } from '../../services/pat-service';
 import { PersonalAccessTokenRepository } from '../../repositories/personal-access-token-repository';
@@ -31,6 +33,9 @@ import { DomainQueryFilter } from '../../repositories/filters/domain-query-filte
 import { PagedData } from '../../repositories/filters/repository-query-filter';
 import { HttpService } from '../../database/models/http-service';
 import ServerUtils from '../../utils/server';
+import { DNSValidator } from '../../utils/dns-validator';
+import { NginxHttpService } from '../../services/proxy-server/nginx-http-service';
+import { NginxTcpService } from '../../services/proxy-server/nginx-tcp-service';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let app;
@@ -78,12 +83,14 @@ describe('HTTP Services Service', () => {
     tcpServicesService = new TcpServicesService(
       tcpServiceRepository,
       new TcpServiceQueryFilter(tcpServiceRepository),
+      new NginxTcpService(),
       nodeRepository,
       domainService,
     );
     service = new HttpServicesService(
       repository,
-      filter,
+      new HttpServiceQueryFilter(repository),
+      new NginxHttpService(),
       nodeRepository,
       domainService,
     );
@@ -420,6 +427,43 @@ describe('HTTP Services Service', () => {
       const result = await service.pingHttpServiceBackend(created.id);
 
       expect(result?.status).toEqual(200);
+    });
+  });
+
+  describe('Domain-based Access Control', () => {
+    it('should resolve allowed domains to IPs when creating Nginx config', async () => {
+      const serviceData = makeHttpServiceData({
+        allowedDomains: ['example.com'],
+        blockedDomains: ['bad.com'],
+      });
+
+      // Override the global DNS validator mock for this test
+      const mockValidateDomain = jest.fn();
+      mockValidateDomain.mockResolvedValueOnce(['192.168.1.1']); // for example.com
+      mockValidateDomain.mockResolvedValueOnce(['10.0.0.1']); // for bad.com
+
+      const mockDNSValidatorInstance = {
+        validateDomain: jest.fn().mockResolvedValue(['127.0.0.1']),
+        validateDomainWithCache: mockValidateDomain,
+      };
+
+      Container.set(DNSValidator, mockDNSValidatorInstance);
+
+      const created = await service.createHttpService(node.id, serviceData);
+
+      expect(created.allowedDomains).toContain('example.com');
+      expect(created.blockedDomains).toContain('bad.com');
+
+      // Verify that Nginx config contains the resolved IPs
+      const calls = mockSaveToFile.mock.calls;
+      const mainConfCall = calls.find(call => call[0].includes('__main.conf'));
+      
+      expect(mainConfCall).toBeDefined();
+      expect(mainConfCall[1]).toMatch(/allow\s+192\.168\.1\.1;/);
+      expect(mainConfCall[1]).toMatch(/deny\s+10\.0\.0\.1;/);
+
+      // Reset the global mock
+      resetDNSValidatorMock();
     });
   });
 });

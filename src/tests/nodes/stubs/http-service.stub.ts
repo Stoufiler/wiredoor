@@ -10,6 +10,13 @@ export const makeHttpServiceData = (params?: any): HttpServiceType => {
     backendProto: params?.backendProto || 'http',
     backendPort: params?.backendPort || 80,
     allowedIps: params?.allowedIps || [],
-    blockedIps: params?.allowedIps || [],
+    blockedIps: params?.blockedIps || [],
+    allowedDomains: params?.allowedDomains || [],
+    blockedDomains: params?.blockedDomains || [],
+    requireAuth: params?.requireAuth || false,
+    skipAuthRoutes: params?.skipAuthRoutes || '',
+    enabled: params?.enabled ?? true,
+    ttl: params?.ttl || '1h',
+    ...params, // Spread params to override defaults
   };
 };

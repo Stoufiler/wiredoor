@@ -1,3 +1,4 @@
+import { Service } from 'typedi';
 import Container from 'typedi';
 import { HttpService } from '../../database/models/http-service';
 import { NginxLocationConf } from './conf/nginx-location-conf';
@@ -6,6 +7,7 @@ import { DomainRepository } from '../../repositories/domain-repository';
 import IP_CIDR from '../../utils/ip-cidr';
 import { NginxConf } from './conf/nginx-conf';
 import { Logger } from '../../logger';
+import { DNSValidator } from '../../utils/dns-validator';
 
 type LocationType = 'exact' | 'regex';
 
@@ -21,6 +23,29 @@ const parseLocationType = (line: string): LocationType | null => {
   return null;
 };
 
+const resolveDomainsToIps = async (
+  domains: string[] | null | undefined = [],
+  dnsValidator: DNSValidator,
+  label: 'allowed' | 'blocked',
+): Promise<string[]> => {
+  const safeDomains = domains || [];
+  const uniqueDomains = [...new Set(safeDomains.filter(Boolean))];
+
+  const results = await Promise.all(
+    uniqueDomains.map(async (domain) => {
+      try {
+        return await dnsValidator.validateDomainWithCache(domain);
+      } catch (e) {
+        Logger.warn(`Failed to resolve ${label} domain ${domain}`, e);
+        return [];
+      }
+    }),
+  );
+
+  return results.flat();
+};
+
+@Service()
 export class NginxHttpService extends NginxService {
   async create(service: HttpService, restart = true): Promise<boolean> {
     if (!service.enabled) {
@@ -85,8 +110,20 @@ export class NginxHttpService extends NginxService {
       }
     }
 
+    const allowedIps = new Set(service.allowedIps || []);
+    const blockedIps = new Set(service.blockedIps || []);
+    const dnsValidator = Container.get(DNSValidator);
+
+    const [resolvedAllowed, resolvedBlocked] = await Promise.all([
+      resolveDomainsToIps(service.allowedDomains, dnsValidator, 'allowed'),
+      resolveDomainsToIps(service.blockedDomains, dnsValidator, 'blocked'),
+    ]);
+
+    resolvedAllowed.forEach((ip) => allowedIps.add(ip));
+    resolvedBlocked.forEach((ip) => blockedIps.add(ip));
+
     baseLocation
-      .setNetworkAccess(service.allowedIps)
+      .setNetworkAccess([...allowedIps], [...blockedIps])
       .includeCommonProxySettings()
       .addBlock(`set $${service.identifier}`, host)
       .setProxyPass(
